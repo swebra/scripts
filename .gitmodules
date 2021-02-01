@@ -1,0 +1,3 @@
+[submodule "helper/write-templates"]
+	path = helper/write-templates
+	url = git@github.com:imswebra/templates.git

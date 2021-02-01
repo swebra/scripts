@@ -17,7 +17,7 @@ class Conversion:
         return self.out_ext
 
 
-
+# Validation function for inquirer
 def at_least_one(_, current_answers):
     if len(current_answers) <= 0:
         raise errors.ValidationError("",
@@ -28,33 +28,41 @@ def at_least_one(_, current_answers):
 # Configuration variables
 src_dir = "~/downloads/"
 notes_parent_dir = "~/school/notes"
+final_ext = ".svgz"
 src_conversion = {
+    # Convert from PowerPoint to PDF w/ LibreOffice
     ".pptx": Conversion(".pdf", [
         "soffice",
         "--headless",
         "--convert-to",
         "pdf",
     ]),
+    # Convert from PDF to Write SVGZ w/ pdf2write.sh script
     ".pdf": Conversion(".svgz", [
-        str(Path(Path(__file__).parent, "./helper/write-templates/pdf2write.sh")),
+        str(Path(Path(__file__).parent,
+                 "./helper/write-templates/pdf2write.sh")),
         "-s",
         "letter",
     ]),
 }
-final_ext = ".svgz"
 
 
-# Get paths
+# Get source files
 src_dir_path = Path(src_dir).expanduser()
 src_files = {}
 for ext in src_conversion.keys():
-    src_files.update({path.name:path for path in src_dir_path.glob("*" + ext)})
-note_dirs = {path.name:path for path
-             in Path(notes_parent_dir).expanduser().iterdir()
-             if path.is_dir()}
-
+    src_files.update({path.name: path for path
+                      in src_dir_path.glob("*" + ext)})
 if len(src_files) < 1:
     print(f"No source files found within {src_dir}")
+    exit(1)
+
+# Get note directories
+note_dirs = {path.name: path for path
+             in Path(notes_parent_dir).expanduser().iterdir()
+             if path.is_dir()}
+if len(note_dirs) < 1:
+    print(f"No note directories found within {notes_parent_dir}")
     exit(1)
 
 
@@ -79,12 +87,14 @@ if answer is None:
 
 
 # Convert
-src_files = {key:src_files[key] for key in answer["selected_srcs"]}
-out_files = {path.with_suffix(final_ext):{path} for path in src_files.values()}
+src_files = {key: src_files[key] for key in answer["selected_srcs"]}
+out_files = {path.with_suffix(final_ext): {path}
+             for path in src_files.values()}
 
 while src_files:
     for ext, conversion in src_conversion.items():
-        ext_srcs = [name for name, path in src_files.items() if path.suffix == ext]
+        ext_srcs = [name for name, path in src_files.items()
+                    if path.suffix == ext]
         if not ext_srcs:
             continue
         out_ext = conversion.convert(ext_srcs, src_dir_path)

@@ -1,0 +1,2 @@
+inquirer==2.7.0
+jproperties==2.1.0

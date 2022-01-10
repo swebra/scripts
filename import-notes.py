@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 import subprocess
-from sys import exit
+import re
+from sys import exit, stdout
 from pathlib import Path
-from re import fullmatch
 import inquirer
-from inquirer import errors
+from inquirer import errors as inquirer_errors
 
 # Configuration variables
 source_dir = "~/downloads/"
@@ -56,11 +56,33 @@ class PdfConverter(Converter):
     def is_final():
         return True
 
+    @staticmethod
+    def get_pdf_dim(filename, cwd):
+        pdfinfo = subprocess.check_output(["pdfinfo", filename], cwd=cwd).decode(stdout.encoding)
+        return map(float, re.search(
+            r"^\s*Page\s+size:\s*(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)",
+            pdfinfo,
+            flags=re.MULTILINE
+        ).groups())
+
+    @classmethod
+    def compute_scale(cls, dpi, filename, cwd):
+        width, height = cls.get_pdf_dim(filename, cwd)
+        # TODO: Smarter scaling or make PM for writetopdf
+        # Match width to letter paper
+        return (8.5 * dpi) / width
+
     def convert(self, filenames, cwd):
+        dpi = 96
         for filename in filenames:
             print(f"Converting {filename} to {self.output_ext}...")
             subprocess.run(
-                ["pdftowrite", filename],
+                [
+                    "pdftowrite",
+                    "--dpi", str(dpi),
+                    "--scale", f"{self.compute_scale(dpi, filename, cwd):.2f}",
+                    filename
+                ],
                 cwd=cwd,
                 stderr=subprocess.DEVNULL
             )
@@ -121,8 +143,7 @@ class Destination:
     def compute_cleaned_filelist(self):
         blacklist = ["midterm", "review"]
         glob = [file.name for file in self.dir.glob("*" + self.final_ext)]
-        self.cleaned_filelist = [name for name in glob
-                                 if not any(sub in name for sub in blacklist)]
+        self.cleaned_filelist = [name for name in glob if not any(sub in name for sub in blacklist)]
 
     def tail_ls(self):
         if len(self.cleaned_filelist) > 0:
@@ -135,10 +156,7 @@ class Destination:
             return None
 
         if self.suggestion is None:
-            match = fullmatch(
-                fr"(\D*)(\d\d)(\D*)\{self.final_ext}",
-                self.cleaned_filelist[-1]
-            )
+            match = re.fullmatch(fr"(\D*)(\d\d)(\D*)\{self.final_ext}", self.cleaned_filelist[-1])
             if match is None:
                 return None
             self.suggestion = list(match.groups(default=""))
@@ -162,8 +180,7 @@ class Destination:
 # Helper Functions
 def at_least_one(_, current_answers):  # Validation function for inquirer
     if len(current_answers) <= 0:
-        raise errors.ValidationError("",
-                                     reason="Please select at least one file")
+        raise inquirer_errors.ValidationError("", reason="Please select at least one file")
     return True
 
 
